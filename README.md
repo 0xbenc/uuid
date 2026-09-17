@@ -53,3 +53,20 @@ brew install 0xbenc/tap/uuid
 ```
 
 coming soon
+
+## Releasing
+
+Push a `vX.Y.Z` tag: goreleaser builds the archives and publishes the GitHub
+release, then the workflow renders `packaging/homebrew/uuid.rb.tmpl` from the
+release's own `checksums.txt` and pushes it to
+[`0xbenc/homebrew-tap`](https://github.com/0xbenc/homebrew-tap) as
+`Formula/uuid.rb`.
+
+The tap entry is a **Formula**, not a cask, because `uuid` is installed from it
+on Linux as well as macOS and Homebrew casks are macOS-only. goreleaser's own
+`brews` support would do this, but it is deprecated and fails `goreleaser
+check` as of v2.16, and its replacement (`homebrew_casks`) would drop Linux.
+
+Pushing to the tap needs a `TAP_GITHUB_TOKEN` repository secret with write
+access to `0xbenc/homebrew-tap` — the same secret the other 0xbenc tools use.
+Prerelease tags (`v1.2.3-rc1`) skip the tap and leave it on the last stable.

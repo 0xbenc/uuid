@@ -35,6 +35,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
       - name: Attest build provenance
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
@@ -42,3 +43,38 @@ jobs:
             dist/*.tar.gz
             dist/*.sbom.json
             dist/checksums.txt
+
+      # The tap keeps a real Formula, not a cask: uuid is installed from it on
+      # Linux as well as macOS, and casks are macOS-only. goreleaser's `brews`
+      # would do this, but it is deprecated and now fails `goreleaser check`,
+      # so the formula is rendered from the release's own checksums instead.
+      - name: Publish Homebrew formula
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          case "$VERSION" in
+            *-*)
+              echo "$VERSION is a prerelease; leaving the tap on the last stable formula"
+              exit 0
+              ;;
+          esac
+          if [ -z "${TAP_GITHUB_TOKEN:-}" ]; then
+            echo "TAP_GITHUB_TOKEN is not set: the release published, but the tap formula was not updated." >&2
+            echo "Set it with: gh secret set TAP_GITHUB_TOKEN --repo 0xbenc/uuid" >&2
+            exit 1
+          fi
+          git clone --depth 1 \
+            "https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/0xbenc/homebrew-tap.git" tap
+          python3 packaging/homebrew/render.py "$VERSION" dist/checksums.txt tap/Formula/uuid.rb
+          cd tap
+          git config user.name goreleaserbot
+          git config user.email goreleaserbot@users.noreply.github.com
+          git add Formula/uuid.rb
+          if git diff --cached --quiet; then
+            echo "formula already current for $VERSION"
+            exit 0
+          fi
+          git commit -m "Brew formula update for uuid version $VERSION"
+          git push

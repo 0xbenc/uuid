@@ -1,0 +1,35 @@
+class Uuid < Formula
+  desc "Generate UUIDs straight to your clipboard"
+  homepage "https://github.com/0xbenc/uuid"
+  version "{{VERSION}}"
+  license "MIT"
+
+  on_macos do
+    if Hardware::CPU.arm?
+      url "https://github.com/0xbenc/uuid/releases/download/v{{VERSION}}/uuid_{{VERSION}}_darwin_arm64.tar.gz"
+      sha256 "{{SHA_DARWIN_ARM64}}"
+    else
+      url "https://github.com/0xbenc/uuid/releases/download/v{{VERSION}}/uuid_{{VERSION}}_darwin_amd64.tar.gz"
+      sha256 "{{SHA_DARWIN_AMD64}}"
+    end
+  end
+
+  on_linux do
+    if Hardware::CPU.arm?
+      url "https://github.com/0xbenc/uuid/releases/download/v{{VERSION}}/uuid_{{VERSION}}_linux_arm64.tar.gz"
+      sha256 "{{SHA_LINUX_ARM64}}"
+    else
+      url "https://github.com/0xbenc/uuid/releases/download/v{{VERSION}}/uuid_{{VERSION}}_linux_amd64.tar.gz"
+      sha256 "{{SHA_LINUX_AMD64}}"
+    end
+  end
+
+  def install
+    bin.install "uuid"
+  end
+
+  test do
+    assert_equal "2ed6657d-e927-568b-95e1-2665a8aea6a2",
+      shell_output("#{bin}/uuid -no-copy -v 5 -ns dns -name www.example.com").strip
+  end
+end
