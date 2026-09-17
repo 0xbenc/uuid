@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // fakeBackend writes a shell script named name into dir that copies stdin
@@ -88,5 +89,35 @@ func TestLastCandidate(t *testing.T) {
 	}
 	if b, err := os.ReadFile(dest); err != nil || string(b) != "pb" {
 		t.Fatalf("pbcopy payload = %q, %v; want %q", b, err, "pb")
+	}
+}
+
+// TestBackendDaemonDoesNotBlock is the regression guard for the hang that
+// sent `uuid` to the background of the shell instead of back to the
+// prompt: real backends fork a daemon that owns the selection and holds
+// the inherited fds open, so Write must not wait on anything the daemon
+// still has. The fake below mimics that by leaving a long sleep behind
+// with all three streams inherited.
+func TestBackendDaemonDoesNotBlock(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "payload.bin")
+	script := "#!/bin/sh\n/bin/cat > '" + dest + "'\n/bin/sleep 60 &\nexit 0\n"
+	if err := os.WriteFile(filepath.Join(dir, "wl-copy"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+
+	done := make(chan error, 1)
+	go func() { done <- Write([]byte("daemon")) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Write: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Write blocked on a backend that forked a daemon holding the inherited fds")
+	}
+	if b, err := os.ReadFile(dest); err != nil || string(b) != "daemon" {
+		t.Fatalf("payload = %q, %v; want %q", b, err, "daemon")
 	}
 }
